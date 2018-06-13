@@ -49,7 +49,7 @@
         <Key android:codes="-101" android:keyIcon="@drawable/sym_keyboard_language_switch"
             android:keyWidth="10%p"/>
         <Key android:codes="32" android:keyIcon="@drawable/sym_keyboard_space"
-            android:keyWidth="45%p" android:isRepeatable="true"/>
+            android:keyWidth="45%p"/>
         <Key android:codes="55002" android:keyIcon="@drawable/sym_keyboard_left"
             android:keyWidth="15%p" android:isRepeatable="true"/>
         <Key android:codes="55001" android:keyIcon="@drawable/sym_keyboard_right"

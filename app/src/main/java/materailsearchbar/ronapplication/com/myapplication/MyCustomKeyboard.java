@@ -6,12 +6,11 @@ import android.content.Context;
 import android.inputmethodservice.Keyboard;
 import android.inputmethodservice.KeyboardView;
 import android.media.AudioManager;
+import android.os.Handler;
 import android.os.Vibrator;
 import android.text.Editable;
 import android.text.InputType;
-import android.util.Log;
 import android.view.MotionEvent;
-import android.view.SoundEffectConstants;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
@@ -22,7 +21,7 @@ public class MyCustomKeyboard implements KeyboardView.OnKeyboardActionListener {
 
     private KeyboardView mKeyboardView;
     private Activity mHostActivity;
-
+    
 
     //region Keyboard Action Listener
 
@@ -48,7 +47,6 @@ public class MyCustomKeyboard implements KeyboardView.OnKeyboardActionListener {
         switch(primaryCode){
             case KeyCodes.DELETE:
                 if (editable != null && start>0) editable.delete(start - 1, start);
-                Log.e("Keyboardddd", "delete. start = " + start);
                 break;
             case Keyboard.KEYCODE_CANCEL:
                 hideCustomKeyboard();
@@ -62,6 +60,7 @@ public class MyCustomKeyboard implements KeyboardView.OnKeyboardActionListener {
                 if (start < edittext.length()) edittext.setSelection(start + 1);
                 break;
             case KeyCodes.LANG_SWITCH:
+                //Log.e("Keyboardddd", "language switch");
                 break;
             default:
                 // insert character
@@ -110,13 +109,15 @@ public class MyCustomKeyboard implements KeyboardView.OnKeyboardActionListener {
      * @param layoutId The id of the xml file containing the keyboard layout.
      */
     public MyCustomKeyboard(Activity host, int viewId, int layoutId) {
-        mHostActivity= host;
-        mKeyboardView= (KeyboardView)mHostActivity.findViewById(viewId);
+        mHostActivity = host;
+        mKeyboardView = mHostActivity.findViewById(viewId);
         mKeyboardView.setKeyboard(new Keyboard(mHostActivity, layoutId));
         mKeyboardView.setPreviewEnabled(false); // NOTE Do not show the preview balloons
         mKeyboardView.setOnKeyboardActionListener(this);
         // Hide the standard keyboard initially
         mHostActivity.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
+        mKeyboardView.setTranslationX(0f);
+        mKeyboardView.setTranslationY(1500f);
     }
 
     //endregion
@@ -141,35 +142,59 @@ public class MyCustomKeyboard implements KeyboardView.OnKeyboardActionListener {
         mKeyboardView.setEnabled(false);
     }
 
+    public void moveViewToScreenCenter(boolean visible) {
+        if(!visible) {
+            showCustomKeyboard(mKeyboardView);
+            mKeyboardView.animate()
+                    .translationXBy(0f)
+                    .translationYBy(-1500f)
+
+                    .setDuration(1200).start();
+        }
+        else {
+            mKeyboardView.animate()
+                    .translationXBy(-4000f)
+                    .translationYBy(0f)
+                    .rotationBy(1800)
+                    .setDuration(500).start();
+            new Handler().postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    hideCustomKeyboard();
+                    mKeyboardView.setTranslationX(0f);
+                    mKeyboardView.setTranslationY(1500f);
+                }
+            }, 600);
+        }
+    }
+
     //endregion
 
     //region Register Method
 
     /**
-     * Register <var>EditText<var> with resource id <var>resid</var> (on the hosting activity) for using this custom keyboard.
+     * Register <var>EditText<var> with resource id <var>resId</var> (on the hosting activity) for using this custom keyboard.
      *
-     * @param resid The resource id of the EditText that registers to the custom keyboard.
+     * @param resId The resource id of the EditText that registers to the custom keyboard.
      */
     @SuppressLint("ClickableViewAccessibility")
-    public void registerEditText(int resid) {
-        // Find the EditText 'resid'
-        EditText edittext= (EditText)mHostActivity.findViewById(resid);
+    public void registerEditText(int resId) {
+        // Find the EditText 'resId'
+        final EditText editText= mHostActivity.findViewById(resId);
         // Make the custom keyboard appear
-        edittext.setOnFocusChangeListener(new View.OnFocusChangeListener() {
-            // NOTE By setting the on focus listener, we can show the custom keyboard when the edit box gets focus, but also hide it when the edit box loses focus
-            @Override public void onFocusChange(View v, boolean hasFocus) {
-                if( hasFocus ) showCustomKeyboard(v); else hideCustomKeyboard();
-            }
-        });
-        edittext.setOnClickListener(new View.OnClickListener() {
+        //final ViewGroup transitionsContainer = mHostActivity.findViewById(R.id.transitions_container);
+
+        editText.setOnClickListener(new View.OnClickListener() {
             // NOTE By setting the on click listener, we can show the custom keyboard again, by tapping on an edit box that already had focus (but that had the keyboard hidden).
             @Override public void onClick(View v) {
-                showCustomKeyboard(v);
+                boolean visible = isCustomKeyboardVisible();
+                moveViewToScreenCenter(visible);
             }
         });
+
         // Disable standard keyboard hard way
-        // NOTE There is also an easy way: 'edittext.setInputType(InputType.TYPE_NULL)' (but you will not have a cursor, and no 'edittext.setCursorVisible(true)' doesn't work )
-        edittext.setOnTouchListener(new View.OnTouchListener() {
+        // NOTE There is also an easy way: 'editText.setInputType(InputType.TYPE_NULL)' (but you will not have a cursor, and no 'editText.setCursorVisible(true)' doesn't work )
+        editText.setOnTouchListener(new View.OnTouchListener() {
             @Override public boolean onTouch(View v, MotionEvent event) {
                 EditText edittext = (EditText) v;
                 int inType = edittext.getInputType();       // Backup the input type
@@ -180,8 +205,11 @@ public class MyCustomKeyboard implements KeyboardView.OnKeyboardActionListener {
             }
         });
         // Disable spell check (hex strings look like words to Android)
-        edittext.setInputType(edittext.getInputType() | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        editText.setInputType(editText.getInputType() | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+
+        //moveViewToScreenCenter(true);
     }
+
 
     //endregion
 
@@ -189,22 +217,28 @@ public class MyCustomKeyboard implements KeyboardView.OnKeyboardActionListener {
 
     private void playClick(int keyCode){
         AudioManager audioManager = (AudioManager) mHostActivity.getSystemService(Context.AUDIO_SERVICE);
-        audioManager.playSoundEffect(SoundEffectConstants.CLICK, 1.0f);
+        //audioManager.playSoundEffect(SoundEffectConstants.CLICK, 1.0f);
         Vibrator vibrator = (Vibrator) mHostActivity.getSystemService(Context.VIBRATOR_SERVICE);
         vibrator.vibrate(30);
 
         switch(keyCode){
             case 32:
-                audioManager.playSoundEffect(SoundEffectConstants.NAVIGATION_UP);
+                audioManager.playSoundEffect(AudioManager.FX_KEYPRESS_SPACEBAR, 1.0f);
                 break;
             case Keyboard.KEYCODE_DONE:
             case 10:
-                audioManager.playSoundEffect(SoundEffectConstants.NAVIGATION_DOWN);
+                audioManager.playSoundEffect(AudioManager.FX_KEYPRESS_RETURN, 1.0f);
                 break;
             case Keyboard.KEYCODE_DELETE:
-                audioManager.playSoundEffect(SoundEffectConstants.NAVIGATION_LEFT);
+                audioManager.playSoundEffect(AudioManager.FX_KEYPRESS_DELETE, 1.0f);
                 break;
-            default: audioManager.playSoundEffect(SoundEffectConstants.CLICK);
+            case KeyCodes.LEFT:
+                audioManager.playSoundEffect(AudioManager.FX_FOCUS_NAVIGATION_LEFT, 1.0f);
+                break;
+            case KeyCodes.RIGHT:
+                audioManager.playSoundEffect(AudioManager.FX_FOCUS_NAVIGATION_RIGHT, 1.0f);
+                break;
+            default: audioManager.playSoundEffect(AudioManager.FX_KEYPRESS_STANDARD, 1.0f);
         }
         /*
         switch(keyCode){
